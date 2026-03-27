@@ -2,6 +2,14 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, OneHotEncoder, RobustScaler
+from sklearn.feature_selection import SelectKBest, f_regression
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # Vizualizare
 import matplotlib.pyplot as plt
@@ -13,1416 +21,1442 @@ import plotly.graph_objects as go
 from scipy import stats
 from scipy.stats import skew, kurtosis
 
-# Preprocesare
-from sklearn.preprocessing import (
-    StandardScaler,
-    MinMaxScaler,
-    RobustScaler
-)
-
 # Setări
 import warnings
 warnings.filterwarnings("ignore")
 
 
 st.set_page_config(
-    page_title="Proiect EDA cu Streamlit",
+    page_title="Spotify AI Recommender",
     layout="wide"
 )
 
-# =========================
-# CSS
-# =========================
-st.markdown("""
-<style>
-.main-title {
-    font-size: 38px;
-    font-weight: 700;
-    color: #1f4e79;
-    margin-bottom: 5px;
-}
 
-.section-title {
-    font-size: 24px;
-    font-weight: 600;
-    color: #1f4e79;
-    margin-top: 30px;
-}
+@st.cache_data
+def load_data():
+    df = pd.read_csv("spotify_tracks.csv")
+    return df
 
-.blue-line {
-    border: none;
-    height: 3px;
-    background-color: #1f4e79;
-    margin: 10px 0 20px 0;
-}
+df = load_data()
 
-.upload-label {
-    font-size: 20px;
-    font-weight: 600;
-    color: #1f4e79;
-}
-
-.sidebar-title {
-    font-size: 18px;
-    font-weight: 700;
-    color: #1f4e79;
-    margin-top: 10px;
-}
-
-.sidebar-subtitle {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1f4e79;
-    margin-top: 10px;
-}
-
-.missing-card {
-    background-color: #f9fafb;
-    border: 1px solid #d0d7de;
-    border-radius: 10px;
-    padding: 15px;
-    margin-bottom: 15px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    text-align: center;
-}
-
-.missing-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1f4e79;
-    margin-bottom: 5px;
-}
-
-.missing-percent {
-    font-size: 14px;
-    margin-bottom: 10px;
-}
-
-.info-blue {
-    background-color: #e8f2ff;
-    border-left: 6px solid #1f4e79;
-    padding: 18px;
-    border-radius: 8px;
-    height: 100%;
-}
-
-.info-yellow {
-    background-color: #fff6d6;
-    border-left: 6px solid #f4d03f;
-    padding: 18px;
-    border-radius: 8px;
-    height: 100%;
-}
-
-.equal-height {
-    height: 420px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-
-.stat-card {
-    background-color: #f9fafb;
-    border: 1px solid #d0d7de;
-    border-radius: 10px;
-    padding: 20px;
-    text-align: center;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-.stat-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1f4e79;
-    margin-bottom: 8px;
-}
-
-.stat-value {
-    font-size: 28px;
-    font-weight: 700;
-}
-
-.metric-card {
-    background-color: #f8fbff;
-    border: 1px solid #d6e4f0;
-    border-radius: 12px;
-    padding: 20px 25px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.metric-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 18px;
-    font-weight: 600;
-    color: #1f4e79;
-}
-
-.metric-value {
-    font-size: 28px;
-    font-weight: 700;
-    color: #1f4e79;
-}
-
-.home-card {
-    border-radius: 14px;
-    padding: 20px;
-    color: #1f1f1f;
-    min-height: 340px;
-    box-shadow: 0 6px 14px rgba(0,0,0,0.08);
-}
-
-.home-card h3 {
-    margin-top: 0;
-    font-size: 20px;
-    font-weight: 700;
-}
-
-.home-card ul {
-    padding-left: 18px;
-}
-
-.eda-card {
-    padding: 22px;
-    border-radius: 18px;
-    min-height: 320px;
-    margin-bottom: 30px;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.06);
-}
-
-.card-blue { background-color: #eaf3fb; }
-.card-green { background-color: #eaf7ef; }
-.card-yellow { background-color: #fff6df; }
-.card-purple { background-color: #f5effa; }
-.card-orange { background-color: #fff0dc; }
-
-.eda-card h3 {
-    margin-bottom: 10px;
-    color: #1f4e79;
-}
-
-.eda-card ul {
-    padding-left: 18px;
-}
-</style>
+# -----------------------------
+# SIDEBAR
+# -----------------------------
+st.sidebar.markdown("""
+<div style="
+font-size:22px;
+font-weight:700;
+color:#1f4e79;
+margin-bottom:10px;
+">
+Navigare
+</div>
 """, unsafe_allow_html=True)
 
+menu = st.sidebar.radio(
+    "",
+    ["Acasă", "EDA","Preprocesare", "Model", "Recomandări"]
+)
 
+# -----------------------------
+# HOME PAGE
+# -----------------------------
 
-# =========================
-# SIDEBAR
-# =========================
-def sidebar_navigation():
-    st.sidebar.markdown("# 📊 Proiect EDA")
-    st.sidebar.markdown("### Navigare pe cerințe")
+if menu == "Acasă":
+    st.title("🎵 Spotify AI Recommender System")
 
-    sections = [
-        "Acasă",
-        "C1 – Încărcare & Filtrare Date",
-        "C2 – Analiză Generală",
-        "C3 – Analiză Numerică",
-        "C4 – Analiză Categorică",
-        "C5 – Corelații & Outlieri"
-    ]
+# -----------------------------
+# EDA PAGE
+# -----------------------------
 
-    selected = st.sidebar.radio(
-        "Selectează secțiunea:",
-        sections
-    )
+if menu == "EDA":
 
-    st.sidebar.markdown("---")
-    st.sidebar.info(
-        "Încărcare date, filtrare, analiză descriptivă "
-        "și vizualizări interactive."
-    )
+    st.title("📊 Exploratory Data Analysis")
 
-    return selected
-
-
-# =========================
-# SESSION STATE – DATASET
-# =========================
-if "df" not in st.session_state:
-    st.session_state.df = None
-
-
-# =========================
-# PAGINA ACASĂ
-# =========================
-def show_home():
-
-    st.markdown(
-        '<div class="main-title">📌 Tema EDA cu Streamlit</div>',
-        unsafe_allow_html=True
-    )
+    # -----------------------------
+    # EXPLICATIE EDA
+    # -----------------------------
 
     st.markdown("""
-    <div class="info-box">
-    Această aplicație realizează o analiză exploratorie a datelor (EDA),
-    conform cerințelor temei.
+    <div style="
+    background-color:#F0F4FF;
+    border-left:5px solid #4C6EF5;
+    border-radius:12px;
+    padding:26px;
+    font-size:16px;
+    line-height:1.8;
+    color:#1a1a2e;
+    ">
 
-    <br><br>
-    👉 Folosiți meniul din stânga pentru a naviga între cerințe.
+    <h4>🔍 Ce este EDA și de ce o facem?</h4>
+
+    Imaginează-ți că primești un teanc de <b>114.000 de fișe</b> — fiecare fișă este o melodie
+    și conține informații precum energie, tempo sau dispoziția melodiei. Înainte să facem orice analiză sau model Machine Learning,
+    prima întrebare este: <i>ce avem în față?</i>
+
+    Asta înseamnă EDA — explorezi datele ca un detectiv: cauți tipare, anomalii
+        și relații ascunse între variabile. Fără pasul ăsta construim un sistem de recomandare pe date pe care nu le înțelegem —
+        și la final nu vom ști de ce ne recomandă o melodie de Latino când noi am cerut ceva de Rock.
+
+    <b>Concret, în această secțiune vom:</b>
+
+    <ul>
+    <li>Înțelege ce tip are fiecare coloană — număr, text sau adevărat/fals</li>
+    <li>Verifica dacă datele sunt complete sau lipsesc valori</li>
+    <li>Descoperi legături între caracteristicile muzicale</li>
+    <li>Identifica transformările necesare înainte să construim modelul</li>
+    <li>Vizualiza datele prin grafice pentru a observa tipare</li>
+    </ul>
+
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("---")
 
+    # -----------------------------
+    # DATASET PREVIEW
+    # -----------------------------
 
-    c1, c2, c3 = st.columns(3)
+    st.subheader("📁 Vizualizare dataset")
 
-    with c1:
-        st.markdown("""
-        <div class="eda-card card-blue">
-        <h3>📁 Cerința 1 – Încărcare & Filtrare</h3>
-        <ul>
-            <li>Încărcare fișier CSV / Excel</li>
-            <li>Validare citire fișier</li>
-            <li>Mesaj de confirmare</li>
-            <li>Afișare primele rânduri</li>
-            <li>Filtrare numerică (slidere)</li>
-            <li>Filtrare categorică (multiselect)</li>
-            <li>Rânduri înainte / după filtrare</li>
-            <li>DataFrame filtrat</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c2:
-        st.markdown("""
-        <div class="eda-card card-green">
-        <h3>🔍 Cerința 2 – Cunoaștere date</h3>
-        <ul>
-            <li>Număr rânduri și coloane</li>
-            <li>Tipuri de date pe coloană</li>
-            <li>Identificare valori lipsă</li>
-            <li>Procent valori lipsă</li>
-            <li>Vizualizare valori lipsă</li>
-            <li>Statistici descriptive</li>
-            <li>Corectare valori lipsă</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c3:
-        st.markdown("""
-        <div class="eda-card card-yellow">
-        <h3>📊 Cerința 3 – Analiză numerică</h3>
-        <ul>
-            <li>Selectare variabilă numerică</li>
-            <li>Histogramă interactivă</li>
-            <li>Slider pentru bins</li>
-            <li>Boxplot</li>
-            <li>Medie, mediană, deviație</li>
-            <li>Tratare outlieri</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-
-    st.markdown("<div style='height: 35px'></div>", unsafe_allow_html=True)
-
-
-    c4, c5 = st.columns(2)
-
-    with c4:
-        st.markdown("""
-        <div class="eda-card card-purple">
-        <h3>🏷️ Cerința 4 – Analiză categorică</h3>
-        <ul>
-            <li>Identificare coloane categorice</li>
-            <li>Selectare variabilă</li>
-            <li>Count plot (bar chart)</li>
-            <li>Frecvențe absolute</li>
-            <li>Procente</li>
-            <li>Codificare categorii</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c5:
-        st.markdown("""
-        <div class="eda-card card-orange">
-        <h3>📈 Cerința 5 – Corelații & Outlieri</h3>
-        <ul>
-            <li>Matrice de corelație</li>
-            <li>Heatmap corelații</li>
-            <li>Scatter plot</li>
-            <li>Coeficient Pearson</li>
-            <li>Detecție outlieri (IQR)</li>
-            <li>Vizualizare outlieri</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-
-
-def show_cerinta_1():
-
-    st.markdown('<div class="main-title">Încărcare & Filtrare Date</div>', unsafe_allow_html=True)
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-
-
-    st.markdown('<div class="upload-label">📂 Alege un fișier CSV sau Excel</div>', unsafe_allow_html=True)
-
-    uploaded_file = st.file_uploader("", type=["csv", "xlsx"])
-
-    if uploaded_file is not None:
-        try:
-            if uploaded_file.name.endswith(".csv"):
-                df = pd.read_csv(uploaded_file)
-            else:
-                df = pd.read_excel(uploaded_file)
-
-            st.session_state.df = df
-            st.success("✅ Fișier încărcat și citit corect!")
-
-        except Exception as e:
-            st.error(f"❌ Eroare la citirea fișierului: {e}")
-            return
-
-    if st.session_state.get("df") is None:
-        st.info("Te rog să încarci un fișier pentru a continua.")
-        return
-
-    df = st.session_state.df
-
-
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📊 Vizualizare date</div>', unsafe_allow_html=True)
-
-    nr_randuri = st.slider(
-        "Selectează numărul de rânduri afișate",
-        min_value=5,
-        max_value=min(100, len(df)),
-        value=10
-    )
-
-    st.dataframe(df.head(nr_randuri), use_container_width=True)
-
-
-    st.sidebar.markdown('<div class="sidebar-title">🧩 Filtrare date</div>', unsafe_allow_html=True)
-
-    df_filtered = df.copy()
-
-    # -------- DATE NUMERICE
-    st.sidebar.markdown('<div class="sidebar-subtitle">🔢 Date numerice</div>', unsafe_allow_html=True)
-    numeric_cols = df.select_dtypes(include="number").columns
-
-    for col in numeric_cols:
-        min_val = float(df[col].min())
-        max_val = float(df[col].max())
-
-        selected_range = st.sidebar.slider(
-            col,
-            min_val,
-            max_val,
-            (min_val, max_val)
-        )
-
-        df_filtered = df_filtered[
-            (df_filtered[col] >= selected_range[0]) &
-            (df_filtered[col] <= selected_range[1])
-        ]
-
-    # -------- DATE NENUMERICE
-    st.sidebar.markdown(
-        '<div class="sidebar-subtitle">🧾 Date nenumerice</div>',
-        unsafe_allow_html=True
-    )
-
-    categorical_cols = df.select_dtypes(include="object").columns
-
-    for col in categorical_cols:
-        # separator vizual între variabile
-        st.sidebar.markdown(
-            '<hr style="margin:10px 0;">',
-            unsafe_allow_html=True
-        )
-
-
-        st.sidebar.markdown(f"**{col}**")
-
-
-        search_text = st.sidebar.text_input(
-            "",
-            placeholder="Caută...",
-            key=f"search_{col}"
-        )
-
-
-        values = df[col].dropna().unique().tolist()
-
-
-        if search_text:
-            values = [
-                v for v in values
-                if search_text.lower() in str(v).lower()
-            ]
-
-
-        selected = st.sidebar.multiselect(
-            "",
-            options=values,
-            default=values,
-            key=f"multi_{col}"
-        )
-
-
-        df_filtered = df_filtered[df_filtered[col].isin(selected)]
-
-    st.session_state.df_filtered = df_filtered
-
-
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📌 Filtrare date</div>', unsafe_allow_html=True)
-    st.caption("Filtrarea se realizează din meniul din stânga.")
-
-    st.write(f"🔢 Număr rânduri nefiltrate: **{df.shape[0]}**")
-    st.write(f"🔢 Număr rânduri filtrate: **{df_filtered.shape[0]}**")
-
-    st.dataframe(df_filtered, use_container_width=True)
-
-
-
-def show_cerinta_2():
-    if st.session_state.df is None:
-        st.info("Te rog să încarci datele în C1 înainte de a continua.")
-        return
-
-    df = st.session_state.df
-
-
-    st.markdown('<div class="main-title">Cunoaștere date</div>', unsafe_allow_html=True)
-
-
-
-    col_a, col_b = st.columns(2)
-
-    with col_a:
-        st.markdown(
-            f"""
-            <div class="metric-card">
-                <div class="metric-left">
-                    🔢 Număr rânduri
-                </div>
-                <div class="metric-value">
-                    {df.shape[0]}
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    with col_b:
-        st.markdown(
-            f"""
-            <div class="metric-card">
-                <div class="metric-left">
-                    🧱 Număr coloane
-                </div>
-                <div class="metric-value">
-                    {df.shape[1]}
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-
-    st.markdown('<div class="section-title">Tipuri de date pe coloane</div>', unsafe_allow_html=True)
-
-    col1, col2 = st.columns([1, 2])
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.markdown("**Selectează coloanele**")
-        selected_cols = st.multiselect(
-            "",
-            options=df.columns.tolist(),
-            default=df.columns.tolist()
-        )
-
+        st.metric("🎵 Melodii", f"{df.shape[0]:,}")
     with col2:
-        if selected_cols:
-            dtype_info = []
-            for col in selected_cols:
-                types = df[col].dropna().map(type).astype(str).unique()
-                dtype_info.append({
-                    "Coloană": col,
-                    "Tipuri de date detectate": ", ".join(types)
-                })
+        st.metric("📋 Coloane", df.shape[1])
+    with col3:
+        st.metric("🎸 Genuri unice", df["track_genre"].nunique() if "track_genre" in df.columns else "—")
+    with col4:
+        st.metric("⚠️ Valori lipsă", int(df.isnull().sum().sum()))
 
-            st.dataframe(pd.DataFrame(dtype_info), use_container_width=True)
+    st.dataframe(
+        df[["track_name", "artists", "track_genre", "popularity",
+            "energy", "danceability", "valence", "tempo"]].head(50),
+        height=350,
+        use_container_width=True
+    )
 
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
+    st.markdown("---")
 
+    # -----------------------------
+    # DESCRIERE COLOANE
+    # -----------------------------
 
-    st.markdown('<div class="section-title">Valori lipsă</div>', unsafe_allow_html=True)
+    st.subheader("📘 Ce înseamnă fiecare coloană?")
 
-    missing_cols = df.columns[df.isnull().sum() > 0]
-
-    if len(missing_cols) == 0:
-        st.success("✅ Datasetul nu conține valori lipsă.")
-    else:
-        max_per_row = 4
-        rows = [
-            missing_cols[i:i + max_per_row]
-            for i in range(0, len(missing_cols), max_per_row)
+    descriere = pd.DataFrame({
+        "Nume coloană": [
+            "track_id", "track_name", "artists", "album_name",
+            "popularity", "duration_ms", "explicit",
+            "danceability", "energy", "key", "loudness",
+            "mode", "speechiness", "acousticness",
+            "instrumentalness", "liveness", "valence",
+            "tempo", "time_signature", "track_genre"
+        ],
+        "Descriere": [
+            "Codul unic al melodiei în Spotify — ca un CNP. Nu îl folosim în analiză.",
+            "Numele melodiei. Ex: Blinding Lights. Doar pentru afișare.",
+            "Artistul melodiei. Ex: The Weeknd. Doar pentru afișare.",
+            "Albumul din care face parte. Nu îl folosim în model.",
+            "Cât de populară e pe Spotify în momentul colectării. Scor 0–100.",
+            "Durata în milisecunde. Ex: 200.000 ms = 3 minute și 20 secunde.",
+            "Conține limbaj explicit? True = da, False = nu.",
+            "Cât de ușor poți dansa pe ea — ritm stabil, beat regulat. 0 = greu, 1 = perfect pentru dans.",
+            "Intensitatea percepută. Clasica are energy mic, metalul și EDM au energy mare. 0–1.",
+            "Tonalitatea muzicală: 0 = Do, 1 = Do#, 2 = Re... Nu îl folosim în model.",
+            "Volumul mediu în decibeli. Valori negative — -5 dB e mai tare decât -20 dB.",
+            "Modul muzical: 1 = major (vesel, luminos), 0 = minor (trist, melancolic).",
+            "Cât de multă vorbire conține. Rap = valoare mare, instrumental = aproape 0.",
+            "Cât e de acustică vs electronică. 1 = chitară/pian, 0 = complet produsă electronic.",
+            "Cât e de instrumentală — fără voce. Jazz instrumental sau clasică au valori mari.",
+            "Probabilitatea că e înregistrată live. Valori mari = aplauze, zgomot de fond.",
+            "Dispoziția melodiei. 0 = trist/furios, 1 = fericit/euforic.",
+            "Viteza în BPM (bătăi pe minut). Lent ~60, dans ~128, metal poate depăși 180.",
+            "Măsura muzicală. Aproape toate melodiile pop au 4 (4/4). Nu îl folosim în model.",
+            "Genul muzical. Ex: pop, rock, latin. Avem 114 genuri diferite în dataset."
+        ],
+        "Tip": [
+            "identificator", "text", "text", "text",
+            "numeric 0–100", "numeric (ms)", "boolean",
+            "numeric 0–1", "numeric 0–1", "numeric 0–11",
+            "numeric (dB)", "boolean 0/1", "numeric 0–1",
+            "numeric 0–1", "numeric 0–1", "numeric 0–1",
+            "numeric 0–1", "numeric (BPM)", "numeric 3–7",
+            "categoric"
         ]
+    })
 
-        for row in rows:
+    st.dataframe(descriere, use_container_width=True, hide_index=True)
 
-            cols = st.columns(max_per_row)
+    st.markdown("---")
 
-            for i in range(max_per_row):
-                if i < len(row):
-                    col_name = row[i]
-                    missing_pct = df[col_name].isnull().mean() * 100
+    # -----------------------------
+    # GRAFIC 1 — POPULARITATE PE GEN
+    # -----------------------------
 
-                    with cols[i]:
+    st.subheader("🎸 Grafic 1 — Ce gen muzical e cel mai popular?")
+
+    st.info("💬 **Întrebare pentru voi înainte să vedeți graficul:** Care gen credeți că are popularitatea medie cea mai mare în dataset?")
+
+    top_genuri = df["track_genre"].value_counts().head(12).index
+    df_top = df[df["track_genre"].isin(top_genuri)]
+    gen_pop = df_top.groupby("track_genre")["popularity"].mean().reset_index()
+    gen_pop.columns = ["Gen", "Popularitate medie"]
+    gen_pop = gen_pop.sort_values("Popularitate medie", ascending=False)
+
+    fig1 = px.bar(
+        gen_pop,
+        x="Gen",
+        y="Popularitate medie",
+        color="Popularitate medie",
+        color_continuous_scale="teal",
+        text=gen_pop["Popularitate medie"].round(1),
+        title="Popularitate medie pe gen muzical (top 12 genuri)"
+    )
+    fig1.update_traces(textposition="outside")
+    fig1.update_layout(coloraxis_showscale=False, yaxis_range=[0, 70])
+    st.plotly_chart(fig1, use_container_width=True)
+
+    st.success("""
+🔍 **Ce observăm?**
+
+Analiza indică faptul că, la momentul colectării, cele mai populare genuri au fost **Anime (48.8), Brazil (44.7) și Ambient (44.2).**
+
+Validitatea studiului este garantată de structura echilibrată a eșantionului (1000 de piese per gen), eliminând erorile de volum și oferind o bază solidă pentru compararea directă a popularității între cele 114 genuri.
+""")
+
+    st.markdown("---")
+
+    # -----------------------------
+    # GRAFIC 2 — TRIST VS FERICIT
+    # -----------------------------
+
+    st.subheader("😊 Grafic 2 — Melodiile fericite sunt mai populare?")
+
+    st.info("💬 **Întrebare:** Voi ascultați mai mult muzică tristă sau fericită? Credeți că melodiile fericite sunt mai ascultate?")
+
+    df["dispozitie"] = pd.cut(
+        df["valence"],
+        bins=[0, 0.33, 0.66, 1.0],
+        labels=["😢 Trist", "😐 Neutru", "😊 Fericit"]
+    )
+
+    pop_disp = df.groupby("dispozitie", observed=True)["popularity"].mean().reset_index()
+    pop_disp.columns = ["Dispoziție", "Popularitate medie"]
+
+    fig2 = px.bar(
+        pop_disp,
+        x="Dispoziție",
+        y="Popularitate medie",
+        color="Dispoziție",
+        color_discrete_map={
+            "😢 Trist":  "#7F77DD",
+            "😐 Neutru": "#888780",
+            "😊 Fericit": "#EF9F27"
+        },
+        text=pop_disp["Popularitate medie"].round(1),
+        title="Popularitate medie după dispoziția melodiei"
+    )
+    fig2.update_traces(textposition="outside")
+    fig2.update_layout(showlegend=False, yaxis_range=[0, 60])
+    st.plotly_chart(fig2, use_container_width=True)
+
+    st.success("🔍 În setul de date analizat, există o corelație inversă între nivelul de optimism al unei piese și popularitatea sa medie. Utilizatorii Spotify preferă conținutul care induce o stare de calm sau reflecție, în detrimentul melodiilor pur energice/fericite.")
+
+    st.markdown("---")
+
+    # -----------------------------
+    # GRAFIC 3 — ENERGIE VS DANSABILITATE
+    # -----------------------------
+
+    st.subheader("⚡ Grafic 3 — Melodiile energice se dansează mai ușor?")
+
+    st.info("💬 **Întrebare:** Dacă o melodie e mai intensă și energică, înseamnă automat că e mai ușor de dansat?")
+
+    sample = df.sample(2000, random_state=42)
+
+    fig3 = px.scatter(
+        sample,
+        x="energy",
+        y="danceability",
+        color="track_genre",
+        opacity=0.5,
+        hover_data=["track_name", "artists"],
+        title="Energie vs Dansabilitate — fiecare punct e o melodie",
+        labels={"energy": "Energie", "danceability": "Dansabilitate"}
+    )
+    fig3.update_layout(showlegend=False)
+    st.plotly_chart(fig3, use_container_width=True)
+
+    st.success("🔍 **Ce observăm?** Nu există o corelație directă. O melodie foarte energică poate fi greu de dansat. Dansabilitatea depinde de regularitatea ritmului, nu de intensitate — de aceea modelul nostru are nevoie de ambele coloane separat.")
+
+    st.markdown("---")
+
+    st.info("✅ Am explorat datele. Acum știm ce conțin, ce lipsește și cum se leagă variabilele între ele. Mergem la pasul următor: preprocesare și construirea modelului de recomandare.")
+
+
+# -----------------------------
+# PREPROCESARE PAGE
+# -----------------------------
+
+# ==============================
+# PREPROCESARE PAGE
+# ==============================
+
+if menu == "Preprocesare":
+
+    st.title("⚙️ Preprocesarea datelor")
+
+    st.subheader("📊 Variabile utilizate în model")
+
+    numeric_cols = [
+        "danceability",
+        "energy",
+        "loudness",
+        "mode",
+        "speechiness",
+        "acousticness",
+        "instrumentalness",
+        "valence",
+        "tempo"
+    ]
+
+    X_model = df[numeric_cols].copy()
+
+    # =========================
+    # AFISARE CHIP-URI COLOANE
+    # =========================
+
+    def render_feature_cards(features):
+
+        cols_per_row = 4
+
+        for i in range(0, len(features), cols_per_row):
+
+            row = features[i:i+cols_per_row]
+
+            cols = st.columns(cols_per_row)
+
+            for j in range(cols_per_row):
+
+                if j < len(row):
+
+                    with cols[j]:
+
                         st.markdown(
                             f"""
-                            <div class="missing-card">
-                                <div class="missing-title">{col_name}</div>
-                                <div class="missing-percent">
-                                    {missing_pct:.2f}% valori lipsă
-                                </div>
+                            <div style="
+                            background:#E9EEF6;
+                            border-radius:14px;
+                            padding:12px;
+                            text-align:center;
+                            font-weight:500;
+                            margin-bottom:12px;
+                            ">
+                            {row[j]}
                             </div>
                             """,
                             unsafe_allow_html=True
                         )
 
-                        fig = px.pie(
-                            values=[missing_pct, 100 - missing_pct],
-                            names=["Lipsă", "Complet"],
-                            hole=0.65,
-                            color_discrete_sequence=["#f4d03f", "#1f4e79"]
-                        )
-                        fig.update_layout(
-                            showlegend=False,
-                            height=220,
-                            margin=dict(t=0, b=0, l=0, r=0)
-                        )
-
-                        st.plotly_chart(
-                            fig,
-                            use_container_width=True,
-                            key=f"missing_donut_{col_name}"
-                        )
-
                 else:
 
-                    with cols[i]:
-                        st.empty()
+                    cols[j].empty()
 
 
-    st.markdown('<div class="section-title">Vizualizare valori lipsă</div>', unsafe_allow_html=True)
+    render_feature_cards(numeric_cols)
 
-    st.caption(
-        "Această vizualizare permite identificarea rapidă a tiparelor de valori lipsă "
-        "și a coloanelor problematice."
-    )
-
-    fig, ax = plt.subplots(figsize=(12, 6))
-    colours = ['#1f4e79', '#f4d03f']  # albastru = existent, galben = lipsă
-    sns.heatmap(df.isnull(), cmap=sns.color_palette(colours), cbar=False, ax=ax)
-    st.pyplot(fig)
-
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-
-
-    st.markdown('<div class="section-title">Statistici descriptive (coloane numerice)</div>', unsafe_allow_html=True)
-
-    stats_df = df.describe().T
-    stats_df["median"] = df.median(numeric_only=True)
-
-    st.dataframe(stats_df, use_container_width=True)
-
-
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="section-title">Corectarea valorilor lipsă</div>',
-        unsafe_allow_html=True
-    )
-
-    st.caption(
-        "Această etapă permite aplicarea unor metode de tratare a valorilor lipsă "
-        "pe o copie a datasetului, fără a modifica datele originale."
-    )
-
-
-    cols_with_na = df.columns[df.isnull().sum() > 0].tolist()
-
-    if not cols_with_na:
-        st.success("Datasetul nu conține valori lipsă care să necesite corectare.")
-        return
-
-
-    selected_col = st.selectbox(
-        "Selectează coloana pentru corectare:",
-        cols_with_na
-    )
-
-    is_numeric = pd.api.types.is_numeric_dtype(df[selected_col])
-
-
-    if is_numeric:
-        method = st.radio(
-            "Alege metoda de corectare (numeric):",
-            ["Medie", "Mediană", "Mod", "Interpolare", "Elimină rânduri"]
-        )
-    else:
-        method = st.radio(
-            "Alege metoda de corectare (categoric):",
-            ["Mod", "Elimină rânduri"]
-        )
-
-    apply_fix = st.button("Aplică corectarea")
-
-    if apply_fix:
-        df_copie = df.copy()
-
-        if method == "Medie":
-            df_copie[selected_col].fillna(df_copie[selected_col].mean(), inplace=True)
-
-        elif method == "Mediană":
-            df_copie[selected_col].fillna(df_copie[selected_col].median(), inplace=True)
-
-        elif method == "Mod":
-            mode_val = df_copie[selected_col].mode().iloc[0]
-            df_copie[selected_col].fillna(mode_val, inplace=True)
-
-        elif method == "Interpolare":
-            df_copie[selected_col] = df_copie[selected_col].interpolate()
-
-        elif method == "Elimină rânduri":
-            df_copie = df_copie.dropna(subset=[selected_col])
-
-        st.success(f"✅ Corectarea a fost aplicată folosind metoda: **{method}**")
-        st.session_state.df_curatat = df_copie
-
-
-        st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-        st.markdown(
-            '<div class="section-title">Comparație date – înainte și după corectare</div>',
-            unsafe_allow_html=True
-        )
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.markdown("### Dataset inițial (primele 10 rânduri)")
-            st.dataframe(df.head(10), use_container_width=True)
-
-        with col2:
-            st.markdown("### Dataset corectat (primele 10 rânduri)")
-            st.dataframe(df_copie.head(10), use_container_width=True)
-
-        # =========================
-        # HEATMAP DUPĂ CORECTARE
-        # =========================
-        st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-        st.markdown(
-            '<div class="section-title">Vizualizare valori lipsă după corectare</div>',
-            unsafe_allow_html=True
-        )
-
-        fig2, ax2 = plt.subplots(figsize=(12, 6))
-        sns.heatmap(
-            df_copie.isnull(),
-            cmap=sns.color_palette(['#1f4e79', '#f4d03f']),
-            cbar=False,
-            ax=ax2
-        )
-        st.pyplot(fig2)
-
-# =========================
-# Cerinta 3 – ANALIZĂ VARIABILE NUMERICE
-# =========================
-def show_cerinta_3():
-    if st.session_state.get("df") is None:
-        st.info("Te rog să încarci mai întâi un dataset în C1.")
-        return
-
-    df = st.session_state.df
-
-
-    st.markdown(
-        '<div class="main-title">Analiza distribuției variabilelor numerice</div>',
-        unsafe_allow_html=True
-    )
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-
-
-    numeric_cols = df.select_dtypes(include="number").columns.tolist()
-
-    if not numeric_cols:
-        st.warning("Datasetul nu conține coloane numerice.")
-        return
-
-    selected_col = st.selectbox(
-        "Selectează variabila numerică pentru analiză:",
-        numeric_cols
-    )
-
-    data = df[selected_col].dropna()
-
-
-    bins = st.slider(
-        "Număr de bins pentru histogramă",
-        min_value=10,
-        max_value=100,
-        value=30
-    )
 
     # =========================
-    # HISTOGRAMĂ
+    # EXPLICATIE
     # =========================
-    left, right = st.columns([1, 2])
 
-    with left:
-        st.markdown(
-            """
-            <div class="info-blue equal-height">
-            <strong>📊Histogramă – distribuția variabilei</strong><br><br>
-            Histograma reprezintă distribuția valorilor unei variabile numerice
-            prin gruparea acestora în intervale (bins).<br><br>
+    st.markdown("""
+    <div style="
+    background:#EEF2F8;
+    padding:18px;
+    border-left:5px solid #5C7CFA;
+    border-radius:10px;
+    margin-top:20px;
+    ">
 
-            • Un număr mic de bins evidențiază forma generală a distribuției.<br>
-            • Un număr mare de bins permite observarea detaliilor fine și a
-              eventualelor asimetrii.<br><br>
+În cadrul analizei au fost utilizate doar variabilele numerice menționate anterior, 
+deoarece algoritmii de recomandare bazați pe calculul <b>distanței</b> și al 
+<b>similarității</b> pot lucra exclusiv cu date în <b>format numeric</b>. Variabilele precum <b>titlul melodiei</b> și <b>artistul</b> nu au fost incluse, deoarece 
+nu dorim ca recomandările să se bazeze pe similaritatea numelui sau a interpretului.
 
-            Ajustarea acestui parametru influențează nivelul de granularitate
-            al analizei vizuale.
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+Variabila <b>gen muzical</b> nu a fost utilizată deoarece transformarea acesteia în format numeric:
 
-    with right:
-        fig_hist = px.histogram(
-            data,
-            x=selected_col,
-            nbins=bins,
-            color_discrete_sequence=["#1f4e79"]
-        )
-        fig_hist.update_layout(
-            height=420,
-            title=f"Distribuția valorilor – {selected_col}",
-            title_x=0.5
-        )
+• ar genera un număr mare de coloane suplimentare (prin <b>One-Hot Encoding</b>)  
+• ar introduce relații numerice artificiale între genuri (prin <b>Label Encoding</b>)
 
-        st.plotly_chart(
-            fig_hist,
-            use_container_width=True,
-            key=f"hist_{selected_col}"
-        )
+</div>
+""", unsafe_allow_html=True)
 
 
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
+    st.markdown("---")
+
 
     # =========================
-    # BOXPLOT
+    # DATASET MODEL
     # =========================
-    left, right = st.columns([2, 1])
 
-    with left:
-        fig_box = px.box(
-            data,
-            y=selected_col,
-            color_discrete_sequence=["#f4d03f"]
-        )
-        fig_box.update_layout(
-            height=420,
-            title=f"Boxplot – {selected_col}",
-            title_x=0.5
-        )
+    df_model = df[numeric_cols].copy()
 
-        st.plotly_chart(
-            fig_box,
-            use_container_width=True,
-            key=f"box_{selected_col}"
-        )
-
-    with right:
-        st.markdown(
-            """
-            <div class="info-yellow equal-height">
-            <strong>📦Interpretarea boxplot-ului</strong><br><br>
-            Boxplot-ul oferă o sinteză statistică a distribuției datelor
-            prin intermediul quartilelor.<br><br>
-
-            • Linia centrală indică valoarea mediană.<br>
-            • Cutia reprezintă intervalul interquartilic (Q1–Q3).<br>
-            • Valorile extreme pot semnala prezența outlierilor.<br><br>
-
-            Această reprezentare este utilă pentru evaluarea variabilității
-            și a asimetriilor distribuției.
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-
-    # =========================
-    # STATISTICI
-    # =========================
-    st.markdown(
-        '<div class="section-title">📐 Indicatori statistici</div>',
-        unsafe_allow_html=True
-    )
-
-    mean_val = data.mean()
-    median_val = data.median()
-    std_val = data.std()
-
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        st.markdown(
-            f"""
-            <div class="stat-card">
-                <div class="stat-title">📈 Medie</div>
-                <div class="stat-value">{mean_val:.2f}</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    with c2:
-        st.markdown(
-            f"""
-            <div class="stat-card">
-                <div class="stat-title">📊 Mediană</div>
-                <div class="stat-value">{median_val:.2f}</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    with c3:
-        st.markdown(
-            f"""
-            <div class="stat-card">
-                <div class="stat-title">📉 Deviație standard</div>
-                <div class="stat-value">{std_val:.2f}</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="section-title">🔧 Corectări asupra variabilelor numerice</div>',
-        unsafe_allow_html=True
-    )
-
-    method = st.radio(
-        "Selectează metoda de corectare numerică:",
-        [
-            "Fără corectare",
-            "Eliminare outlieri (IQR)",
-            "Limitare outlieri (Winsorization)",
-            "Standardizare (Z-score)",
-            "Normalizare (Min-Max)"
-        ]
-    )
-
-    apply_numeric_fix = st.button("Aplică metoda de corectare")
-
-    if apply_numeric_fix:
-
-        data_original = df[selected_col].dropna()
-        data_corrected = data_original.copy()
-
-        if method == "Fără corectare":
-            st.info("Nu a fost aplicată nicio corectare asupra variabilei.")
-
-        elif method == "Eliminare outlieri (IQR)":
-            Q1 = data_corrected.quantile(0.25)
-            Q3 = data_corrected.quantile(0.75)
-            IQR = Q3 - Q1
-
-            data_corrected = data_corrected[
-                (data_corrected >= Q1 - 1.5 * IQR) &
-                (data_corrected <= Q3 + 1.5 * IQR)
-                ]
-
-            st.success("Outlierii au fost eliminați folosind metoda IQR.")
-            st.write(f"🔢 Număr valori inițiale: {len(data_original)}")
-            st.write(f"🔢 Număr valori după eliminare: {len(data_corrected)}")
-
-        elif method == "Limitare outlieri (Winsorization)":
-            lower = data_corrected.quantile(0.05)
-            upper = data_corrected.quantile(0.95)
-            data_corrected = data_corrected.clip(lower, upper)
-
-            st.success("Valorile extreme au fost limitate (winsorizare).")
-            st.write(f"Interval aplicat: [{lower:.2f}, {upper:.2f}]")
-
-        elif method == "Standardizare (Z-score)":
-            data_corrected = (data_corrected - data_corrected.mean()) / data_corrected.std()
-
-            st.success("Datele au fost standardizate (Z-score).")
-            st.write(f"Medie după standardizare: {data_corrected.mean():.2f}")
-            st.write(f"Deviație standard după standardizare: {data_corrected.std():.2f}")
-
-        elif method == "Normalizare (Min-Max)":
-            data_corrected = (data_corrected - data_corrected.min()) / (
-                    data_corrected.max() - data_corrected.min()
-            )
-
-            st.success("Datele au fost normalizate în intervalul [0, 1].")
-            st.write(
-                f"Min: {data_corrected.min():.2f} | Max: {data_corrected.max():.2f}"
-            )
-
-        # =========================
-        st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-        st.markdown(
-            '<div class="section-title">📊 Comparație vizuală</div>',
-            unsafe_allow_html=True
-        )
-
-        col_l, col_r = st.columns(2)
-
-        # =========================
-        # CAZURI CU OUTLIERI → BOXPLOT
-        # =========================
-        if method in ["Eliminare outlieri (IQR)", "Limitare outlieri (Winsorization)"]:
-
-            with col_l:
-                st.markdown("**Boxplot – date inițiale**")
-                fig_before = px.box(
-                    data_original,
-                    y=data_original,
-                    color_discrete_sequence=["#1f4e79"]
-                )
-                st.plotly_chart(fig_before, use_container_width=True)
-
-            with col_r:
-                st.markdown("**Boxplot – după corectare**")
-                fig_after = px.box(
-                    data_corrected,
-                    y=data_corrected,
-                    color_discrete_sequence=["#27ae60"]
-                )
-                st.plotly_chart(fig_after, use_container_width=True)
-
-            st.info(
-                "Boxplot-ul evidențiază modificările asupra valorilor extreme și "
-                "intervalului interquartilic în urma aplicării metodei."
-            )
-
-        # =========================
-        # ALTE METODE → HISTOGRAMĂ
-        # =========================
-        else:
-            with col_l:
-                st.markdown("**Distribuția inițială**")
-                fig_before = px.histogram(
-                    data_original,
-                    nbins=bins,
-                    color_discrete_sequence=["#1f4e79"]
-                )
-                st.plotly_chart(fig_before, use_container_width=True)
-
-            with col_r:
-                st.markdown("**Distribuția după corectare**")
-                fig_after = px.histogram(
-                    data_corrected,
-                    nbins=bins,
-                    color_discrete_sequence=["#27ae60"]
-                )
-                st.plotly_chart(fig_after, use_container_width=True)
-
-
-
-# =========================
-# CERINȚA 4 – ANALIZA VARIABILELOR CATEGORICE
-# =========================
-def show_cerinta_4():
-    # folosim datasetul inițial din C1
-    if st.session_state.get("df") is None:
-        st.info("Te rog să încarci mai întâi un dataset în C1.")
-        return
-
-    df = st.session_state.df
-
-
-    st.markdown(
-        '<div class="main-title">Analiza distribuției variabilelor categorice</div>',
-        unsafe_allow_html=True
-    )
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-
-
-    categorical_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
-
-    if len(categorical_cols) == 0:
-        st.warning("Datasetul nu conține coloane categorice.")
-        return
-
-
-    st.markdown("### Selectarea variabilei categorice")
-    selected_col = st.selectbox(
-        "Alege variabila categorică pentru analiză:",
-        categorical_cols
-    )
-
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-
-
-    freq_abs = df[selected_col].value_counts(dropna=False)
-    freq_pct = df[selected_col].value_counts(normalize=True, dropna=False) * 100
-
-    freq_df = pd.DataFrame({
-        "Frecvență absolută": freq_abs,
-        "Procent (%)": freq_pct.round(2)
-    }).reset_index()
-
-    freq_df.columns = [selected_col, "Frecvență absolută", "Procent (%)"]
-
-    # =========================
-    # COUNT PLOT
-    # =========================
-    left, right = st.columns([2, 1])
-
-    with left:
-        fig = px.bar(
-            freq_df,
-            x=selected_col,
-            y="Frecvență absolută",
-            color_discrete_sequence=["#1f4e79"]
-        )
-
-        fig.update_layout(
-            height=420,
-            title=f"Distribuția frecvențelor – {selected_col}",
-            title_x=0.5,
-            xaxis_title=selected_col,
-            yaxis_title="Frecvență"
-        )
-
-        st.plotly_chart(
-            fig,
-            use_container_width=True,
-            key=f"cat_bar_{selected_col}"
-        )
-
-    with right:
-        st.markdown(
-            """
-            <div class="info-blue equal-height">
-            <strong>📊 Count plot – interpretare</strong><br><br>
-            Graficul de tip bară evidențiază frecvența de apariție
-            a fiecărei categorii din variabila selectată.<br><br>
-
-            • Categoriile cu bare mai înalte sunt mai frecvente.<br>
-            • Diferențele de înălțime indică dezechilibre în distribuție.<br><br>
-
-            Această analiză este utilă pentru identificarea
-            categoriilor dominante sau rare.
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    # =========================
-    # TABEL FRECVENȚE
-    # =========================
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="section-title">Frecvențe absolute și procente</div>',
-        unsafe_allow_html=True
-    )
-
-    st.dataframe(
-        freq_df,
-        use_container_width=True
-    )
-
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="section-title">🔧 Tratarea categoriilor rare</div>',
-        unsafe_allow_html=True
-    )
-
-    threshold = st.slider(
-        "Prag minim de frecvență (%) pentru o categorie:",
-        min_value=1,
-        max_value=20,
-        value=5
-    )
-
-    apply_grouping = st.button("Grupează categoriile rare")
-
-    if apply_grouping:
-        df_cat = df.copy()
-
-        freq_pct_full = df_cat[selected_col].value_counts(normalize=True) * 100
-        rare_categories = freq_pct_full[freq_pct_full < threshold].index
-
-        df_cat[selected_col] = df_cat[selected_col].replace(
-            rare_categories, "Other"
-        )
-
-        st.success("Categoriile rare au fost grupate în 'Other'.")
-
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="section-title">🔢 Codificarea variabilei categorice</div>',
-        unsafe_allow_html=True
-    )
-
-    encoding_method = st.radio(
-        "Selectează metoda de codificare:",
-        [
-            "Fără codificare",
-            "Label Encoding",
-            "One-Hot Encoding"
-        ]
-    )
-
-    apply_encoding = st.button("Aplică codificarea")
-
-    if apply_encoding:
-        df_encoded = df.copy()
-
-        if encoding_method == "Label Encoding":
-            from sklearn.preprocessing import LabelEncoder
-
-            le = LabelEncoder()
-            df_encoded[selected_col] = le.fit_transform(
-                df_encoded[selected_col].astype(str)
-            )
-
-            st.success("Label Encoding a fost aplicat.")
-            st.write("Mapare categorii → valori numerice:")
-            mapping_df = pd.DataFrame({
-                "Categorie": le.classes_,
-                "Cod numeric": range(len(le.classes_))
-            })
-            st.dataframe(mapping_df, use_container_width=True)
-
-        elif encoding_method == "One-Hot Encoding":
-            df_encoded = pd.get_dummies(
-                df_encoded,
-                columns=[selected_col],
-                prefix=selected_col
-            )
-
-            st.success("One-Hot Encoding a fost aplicat.")
-            st.write("Structura datasetului după codificare:")
-            st.dataframe(df_encoded.head(10), use_container_width=True)
-
-    top_n = st.slider(
-        "Număr de categorii afișate (Top N):",
-        min_value=3,
-        max_value=20,
-        value=10
-    )
-
-    freq_df_top = freq_df.head(top_n)
-
-
-# =========================
-# CERINȚA 5 – PLACEHOLDER
-# =========================
-
-def show_cerinta_5():
-    if st.session_state.get("df") is None:
-        st.info("Te rog să încarci mai întâi un dataset în C1.")
-        return
-
-    df = st.session_state.df
-
-
-    st.markdown(
-        '<div class="main-title">Analiza corelațiilor și detecția valorilor anormale</div>',
-        unsafe_allow_html=True
-    )
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-
-
-    numeric_cols = df.select_dtypes(include="number").columns.tolist()
-
-    if len(numeric_cols) < 2:
-        st.warning("Sunt necesare cel puțin două coloane numerice.")
-        return
-
-
-    st.markdown(
-        '<div class="section-title">📌 Matricea de corelație</div>',
-        unsafe_allow_html=True
-    )
-
-    corr_matrix = df[numeric_cols].corr(method="pearson")
-
-    fig_corr = px.imshow(
-        corr_matrix,
-        text_auto=".2f",
-        color_continuous_scale="RdBu",
-        aspect="auto"
-    )
-
-    fig_corr.update_layout(
-        height=500,
-        title="Heatmap – coeficienți de corelație Pearson",
-        title_x=0.5
-    )
-
-    st.plotly_chart(
-        fig_corr,
-        use_container_width=True,
-        key="corr_heatmap"
-    )
-
-    st.info(
-        "Heatmap-ul evidențiază relațiile liniare dintre variabilele numerice.\n\n"
-        "• valori apropiate de **1** → corelație pozitivă puternică\n"
-        "• valori apropiate de **-1** → corelație negativă puternică\n"
-        "• valori apropiate de **0** → relație slabă sau inexistentă"
-    )
-
-
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="section-title">📈 Analiza relației dintre două variabile</div>',
-        unsafe_allow_html=True
-    )
 
     col1, col2 = st.columns(2)
 
     with col1:
-        var_x = st.selectbox("Variabila X:", numeric_cols, index=0)
-    with col2:
-        var_y = st.selectbox("Variabila Y:", numeric_cols, index=1)
-
-    df_pair = df[[var_x, var_y]].dropna()
-
-    pearson_corr = df_pair[var_x].corr(df_pair[var_y], method="pearson")
-
-    fig_scatter = px.scatter(
-        df_pair,
-        x=var_x,
-        y=var_y,
-        color_discrete_sequence=["#1f4e79"]
-    )
-
-    fig_scatter.update_layout(
-        height=420,
-        title=f"Scatter plot – {var_x} vs {var_y}",
-        title_x=0.5
-    )
-
-    st.plotly_chart(
-        fig_scatter,
-        use_container_width=True,
-        key="scatter_corr"
-    )
-
-    st.markdown(
-        f"""
-        <div class="stat-card">
-            <div class="stat-title">Coeficient Pearson</div>
-            <div class="stat-value">{pearson_corr:.3f}</div>
+        st.markdown(f"""
+        <div style="
+            background:#F5F7FB;
+            border-radius:14px;
+            padding:22px;
+            text-align:center;
+            box-shadow:0px 2px 6px rgba(0,0,0,0.05);
+        ">
+            <div style="font-size:32px;">📊</div>
+            <div style="font-size:26px; font-weight:700;">
+                {X_model.shape[0]:,}
+            </div>
+            <div style="font-size:15px; color:#555;">
+                Număr observații (melodii)
+            </div>
         </div>
-        """,
-        unsafe_allow_html=True
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown(f"""
+        <div style="
+            background:#F5F7FB;
+            border-radius:14px;
+            padding:22px;
+            text-align:center;
+            box-shadow:0px 2px 6px rgba(0,0,0,0.05);
+        ">
+            <div style="font-size:32px;">🧱</div>
+            <div style="font-size:26px; font-weight:700;">
+                {X_model.shape[1]}
+            </div>
+            <div style="font-size:15px; color:#555;">
+                Număr variabile utilizate
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+    # =========================
+    # VALORI LIPSA
+    # =========================
+
+    st.markdown("---")
+
+    st.subheader("🔍 Verificare valori lipsă")
+
+    missing = df_model.isnull().sum()
+
+
+    col1, col2 = st.columns([1.5,1])
+
+
+    with col1:
+
+        import plotly.express as px
+
+        missing_df = missing.reset_index()
+
+        missing_df.columns = ["Feature","Missing"]
+
+        fig = px.bar(
+            missing_df,
+            x="Feature",
+            y="Missing",
+            title="Valori lipsă pe variabile"
+        )
+
+        st.plotly_chart(fig,use_container_width=True)
+
+
+    with col2:
+
+        if missing.sum() == 0:
+
+            st.markdown("""
+            <div style="
+            background:#E8F5E9;
+            border-left:6px solid #2E7D32;
+            padding:18px;
+            border-radius:10px;
+            line-height:1.6;
+            font-size:15.5px;
+            ">
+
+            <b>Rezultat verificare:</b> În acest moment datasetul nu conține valori lipsă pentru variabilele utilizate în model, astfel analiza poate continua fără aplicarea unor metode suplimentare de corectare.
+
+
+            <b>Dacă ar fi existat valori lipsă</b>, acestea ar fi trebuit tratate înainte de continuarea analizei deoarece pot afecta calculul similarității dintre melodii. Alegerea metodei depinde de context și nu există o soluție universal valabilă:
+
+            <ul style="margin-top:6px;">
+            <li><b>Eliminarea înregistrărilor</b> – recomandată când numărul valorilor lipsă este redus.</li>
+            <li><b>Media (mean)</b> – potrivită pentru variabile numerice cu distribuție relativ simetrică.</li>
+            <li><b>Mediana (median)</b> – valoarea centrală a distribuției, recomandată când există outlieri.</li>
+            <li><b>Modul (mode)</b> – cea mai frecventă valoare, utilizată în special pentru variabile categoriale.</li>
+            </ul>
+
+            În cadrul acestui proiect nu este necesară aplicarea acestor metode deoarece datele analizate sunt complete.
+
+            </div>
+            """, unsafe_allow_html=True)
+
+        else:
+
+            st.warning("Există valori lipsă ce vor fi imputate.")
+
+
+    # =========================
+    # CONFIGURARI PREPROCESARE
+    # =========================
+
+    st.markdown("---")
+
+    st.subheader("⚙️ Configurări preprocesare")
+
+
+    col1,col2 = st.columns([1,1])
+
+
+    with col1:
+
+        imputation_method = st.selectbox(
+            "Metodă imputare valori lipsă",
+            ["Fără imputare", "mean", "median", "mode"]
+        )
+
+
+        scaling_method = st.selectbox(
+            "Metodă scalare",
+            ["Fără scalare","StandardScaler","MinMaxScaler"]
+        )
+        st.markdown("""
+            <style>
+            div.stButton > button {
+                background-color: #1f77ff;
+                color: white;
+                border-radius: 8px;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
+        apply_preprocessing = st.button("Aplică preprocesarea datelor")
+
+    with col2:
+
+        st.markdown("""
+        <div style="
+        background:#EEF4FF;
+        border-left:5px solid #4C6EF5;
+        padding:16px;
+        border-radius:10px;
+        font-size:14.8px;
+        line-height:1.6;
+        ">
+
+        <b>Ce reprezintă scalarea datelor?</b>
+
+        Scalarea este procesul prin care variabilele numerice sunt aduse la aceeași scară de valori, astfel încât niciuna dintre ele să nu influențeze modelul mai mult decât celelalte doar din cauza unității de măsură.
+
+
+        <b>Metode utilizate:</b>
+
+        • <b>Fără scalare</b> – păstrăm valorile originale atunci când variabilele sunt deja comparabile ca interval  
+
+        • <b>StandardScaler</b> – transformă datele astfel încât media devine 0 iar deviația standard devine 1  
+        (se folosește frecvent în algoritmi bazați pe distanță)
+
+        • <b>MinMaxScaler</b> – transformă valorile în intervalul [0, 1]  (util atunci când dorim compararea directă între caracteristici)
+
+        <b>Exemplu intuitiv:</b>
+
+        În datasetul Spotify, variabila <b>tempo</b> poate avea valori între 60 și 200,
+        iar variabila <b>danceability</b> are valori între 0 și 1. Fără scalare, algoritmul ar considera tempo mult mai important doar pentru că are valori mai mari numeric.
+        Prin scalare, toate variabilele devin comparabile și modelul poate calcula corect similaritatea dintre melodii.
+
+        </div>
+        """, unsafe_allow_html=True)
+
+
+    # =========================
+    # BUTON PREPROCESARE
+    # =========================
+
+    st.markdown("---")
+
+    st.markdown("""
+    <style>
+    div.stButton > button {
+        background-color: #1f77ff;
+        color: white;
+        border-radius: 8px;
+        border: none;
+    }
+
+    div.stButton > button:hover {
+        background-color: #1f77ff;
+        color: white;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    if apply_preprocessing:
+
+        from sklearn.impute import SimpleImputer
+        from sklearn.preprocessing import StandardScaler, MinMaxScaler
+
+
+        X_model = df[numeric_cols].copy()
+
+        # =========================
+        # IMPUTARE
+        # =========================
+
+        if imputation_method == "mean":
+            imputer = SimpleImputer(strategy="mean")
+            X_model = imputer.fit_transform(X_model)
+
+        elif imputation_method == "median":
+            imputer = SimpleImputer(strategy="median")
+            X_model = imputer.fit_transform(X_model)
+
+        elif imputation_method == "mode":
+            imputer = SimpleImputer(strategy="most_frequent")
+            X_model = imputer.fit_transform(X_model)
+
+        elif imputation_method == "Fără imputare":
+            X_model = X_model.values
+
+        # =========================
+        # SCALARE
+        # =========================
+
+        if scaling_method == "StandardScaler":
+            scaler = StandardScaler()
+            X_model = scaler.fit_transform(X_model)
+
+        elif scaling_method == "MinMaxScaler":
+            scaler = MinMaxScaler()
+            X_model = scaler.fit_transform(X_model)
+
+        elif scaling_method == "Fără scalare":
+            pass  # păstrăm valorile originale
+
+        # =========================
+        # SALVARE DATE MODEL
+        # =========================
+
+        st.session_state["X_model"] = X_model
+        st.session_state["df_model"] = df.reset_index(drop=True)
+        st.session_state["features"] = numeric_cols
+
+        st.success("Preprocesarea a fost aplicată cu succes.")
+
+
+
+    if "X_model" in st.session_state:
+        df_scaled = pd.DataFrame(
+            st.session_state["X_model"],
+            columns=numeric_cols
+        )
+    else:
+        df_scaled = df[numeric_cols].copy()
+
+    # =========================
+    # TABEL DESCRIBE STILIZAT
+    # =========================
+
+    describe_df = df_scaled.describe().T
+
+    st.markdown("### 📋 Indicatori statistici principali")
+
+    st.dataframe(
+        describe_df.style.format("{:.3f}")
+        .background_gradient(cmap="Blues"),
+        use_container_width=True
     )
 
+    # =========================
+    # SELECTARE VARIABILĂ OUTLIERI
+    # =========================
 
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="section-title">🚨 Detecția valorilor anormale (IQR)</div>',
-        unsafe_allow_html=True
-    )
+    st.markdown("### 🔎 Detectare outlieri pe variabile")
 
-    outlier_summary = []
-
-    for col in numeric_cols:
-        Q1 = df[col].quantile(0.25)
-        Q3 = df[col].quantile(0.75)
-        IQR = Q3 - Q1
-
-        lower = Q1 - 1.5 * IQR
-        upper = Q3 + 1.5 * IQR
-
-        outliers = df[(df[col] < lower) | (df[col] > upper)]
-        count_outliers = outliers.shape[0]
-        percent_outliers = (count_outliers / df[col].dropna().shape[0]) * 100
-
-        outlier_summary.append({
-            "Coloană": col,
-            "Număr outlieri": count_outliers,
-            "Procent outlieri (%)": round(percent_outliers, 2)
-        })
-
-    outlier_df = pd.DataFrame(outlier_summary)
-
-    st.dataframe(outlier_df, use_container_width=True)
-
-
-    st.markdown('<hr class="blue-line">', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="section-title">📊 Vizualizarea outlierilor</div>',
-        unsafe_allow_html=True
-    )
-
-    selected_out_col = st.selectbox(
-        "Selectează coloana pentru vizualizarea outlierilor:",
+    selected_feature = st.selectbox(
+        "Selectează variabila analizată",
         numeric_cols
     )
 
-    Q1 = df[selected_out_col].quantile(0.25)
-    Q3 = df[selected_out_col].quantile(0.75)
-    IQR = Q3 - Q1
+    col1, col2 = st.columns(2)
 
-    lower = Q1 - 1.5 * IQR
-    upper = Q3 + 1.5 * IQR
+    # =========================
+    # BOXPLOT OUTLIERI
+    # =========================
 
-    df_out = df.copy()
-    df_out["Outlier"] = (df_out[selected_out_col] < lower) | (df_out[selected_out_col] > upper)
+    with col1:
+        fig_box = px.box(
+            df_scaled,
+            y=selected_feature,
+            title=f"Outlieri pentru {selected_feature}",
+            color_discrete_sequence=["#1f77ff"]
+        )
 
-    fig_out = px.scatter(
-        df_out,
-        y=selected_out_col,
-        color="Outlier",
-        color_discrete_map={True: "red", False: "#1f4e79"}
+        st.plotly_chart(fig_box, use_container_width=True)
+
+        st.markdown("""
+        <div style="
+        background:#EEF4FF;
+        border-left:5px solid #1f77ff;
+        padding:14px;
+        border-radius:10px;
+        font-size:14.5px;
+        line-height:1.6;
+        ">
+
+        <b>Cum interpretăm boxplot-ul?</b>
+
+        Boxplot-ul evidențiază distribuția valorilor unei variabile și permite identificarea valorilor extreme (outlieri):
+
+        • linia din interiorul cutiei reprezintă <b>mediana</b>  
+        • marginile cutiei reprezintă <b>quartilele Q1 și Q3</b>  
+        • „mustățile” indică intervalul valorilor obișnuite  
+        • punctele din exterior reprezintă <b>outlieri</b>
+
+        În general, un număr mic de outlieri este normal. Dacă există foarte mulți, aceștia pot influența calculele de similaritate dintre melodii.
+
+        </div>
+        """, unsafe_allow_html=True)
+    # =========================
+    # HISTOGRAM DISTRIBUȚIE
+    # =========================
+
+    with col2:
+        fig_hist = px.histogram(
+            df_scaled,
+            x=selected_feature,
+            nbins=40,
+            title=f"Distribuția variabilei {selected_feature}",
+            color_discrete_sequence=["#4C6EF5"]
+        )
+
+        st.plotly_chart(fig_hist, use_container_width=True)
+
+        st.markdown("""
+        <div style="
+        background:#E8F5E9;
+        border-left:5px solid #2E7D32;
+        padding:14px;
+        border-radius:10px;
+        font-size:14.5px;
+        line-height:1.6;
+        ">
+
+        <b>Cum interpretăm distribuția variabilei?</b>
+
+        Histograma arată modul în care sunt distribuite valorile variabilei:
+
+        • o distribuție relativ simetrică indică date echilibrate  
+        • o distribuție asimetrică poate indica valori extreme  
+        • concentrarea valorilor într-un interval restrâns arată consistență în caracteristica analizată
+
+        Pentru algoritmii bazați pe distanță, este preferabil ca variabilele să aibă distribuții comparabile după scalare.
+
+        </div>
+        """, unsafe_allow_html=True)
+
+
+if menu == "Model":
+
+    from sklearn.neighbors import NearestNeighbors
+
+    st.title("🧠 Model — Recomandare melodii similare")
+
+    # =========================
+    # METODE DE RECOMANDARE
+    # =========================
+
+    st.subheader("📚 Cum funcționează sistemele de recomandare?")
+    st.write("Există mai multe metode prin care un sistem poate face recomandări. Fiecare are logica ei, avantaje și limitări:")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("""
+        <div style="
+            background: #EEF4FF;
+            border-top: 4px solid #4C6EF5;
+            border-radius: 12px;
+            padding: 18px 20px;
+            line-height: 1.75;
+            font-size: 14px;
+            min-height: 260px;
+        ">
+            <div style="font-size:16px; font-weight:700; color:#1a1a2e; margin-bottom:10px;">
+                🎵 Content-Based Filtering
+            </div>
+            <div style="color:#333; margin-bottom:12px;">
+                Analizează <b>caracteristicile obiectului</b> în sine — energie, tempo, dispoziție.
+                Dacă îți place o melodie energică, îți recomandă alte melodii energice,
+                indiferent de ce ascultă alții.
+            </div>
+            <div style="color:#555; font-size:13px; margin-bottom:12px;">
+                <b>Folosit de:</b> Spotify (analiza audio), Netflix (gen și regie)
+            </div>
+            <div>
+                <span style="background:#D3F9D8; color:#1a7431; padding:2px 8px; border-radius:4px; font-size:12px; display:inline-block; margin:2px;">✅ simplu de implementat</span>
+                <span style="background:#D3F9D8; color:#1a7431; padding:2px 8px; border-radius:4px; font-size:12px; display:inline-block; margin:2px;">✅ nu ai nevoie de alți utilizatori</span>
+                <span style="background:#FFE3E3; color:#c0392b; padding:2px 8px; border-radius:4px; font-size:12px; display:inline-block; margin:2px;">❌ recomandări mai puțin surprinzătoare</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("""
+        <div style="
+            background: #F3FFF3;
+            border-top: 4px solid #2E7D32;
+            border-radius: 12px;
+            padding: 18px 20px;
+            line-height: 1.75;
+            font-size: 14px;
+            min-height: 260px;
+        ">
+            <div style="font-size:16px; font-weight:700; color:#1a1a2e; margin-bottom:10px;">
+                👥 Collaborative Filtering
+            </div>
+            <div style="color:#333; margin-bottom:12px;">
+                Nu analizează conținutul — analizează <b>comportamentul utilizatorilor</b>.
+                „Utilizatorii care au ascultat X au ascultat și Y."
+                Funcționează pe baza similitudinii dintre preferințele oamenilor.
+            </div>
+            <div style="color:#555; font-size:13px; margin-bottom:12px;">
+                <b>Folosit de:</b> Instagram (sugestii conturi), Amazon, TikTok
+            </div>
+            <div>
+                <span style="background:#D3F9D8; color:#1a7431; padding:2px 8px; border-radius:4px; font-size:12px; display:inline-block; margin:2px;">✅ descoperă lucruri neașteptate</span>
+                <span style="background:#D3F9D8; color:#1a7431; padding:2px 8px; border-radius:4px; font-size:12px; display:inline-block; margin:2px;">✅ foarte personalizat</span>
+                <span style="background:#FFE3E3; color:#c0392b; padding:2px 8px; border-radius:4px; font-size:12px; display:inline-block; margin:2px;">❌ ai nevoie de istoric al multor utilizatori</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-top:12px'></div>", unsafe_allow_html=True)
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        st.markdown("""
+        <div style="
+            background: #FFF8F0;
+            border-top: 4px solid #F08C00;
+            border-radius: 12px;
+            padding: 18px 20px;
+            line-height: 1.75;
+            font-size: 14px;
+            min-height: 260px;
+        ">
+            <div style="font-size:16px; font-weight:700; color:#1a1a2e; margin-bottom:10px;">
+                🔀 Hybrid Recommender
+            </div>
+            <div style="color:#333; margin-bottom:12px;">
+                Combină content-based și collaborative filtering.
+                Analizează atât caracteristicile melodiei cât și
+                comportamentul utilizatorilor similari ție.
+                Rezultatul e mai precis și mai variat.
+            </div>
+            <div style="color:#555; font-size:13px; margin-bottom:12px;">
+                <b>Folosit de:</b> Spotify, YouTube, Netflix — majoritatea platformelor mari
+            </div>
+            <div>
+                <span style="background:#D3F9D8; color:#1a7431; padding:2px 8px; border-radius:4px; font-size:12px; display:inline-block; margin:2px;">✅ cele mai bune rezultate</span>
+                <span style="background:#FFE3E3; color:#c0392b; padding:2px 8px; border-radius:4px; font-size:12px; display:inline-block; margin:2px;">❌ complex de implementat</span>
+                <span style="background:#FFE3E3; color:#c0392b; padding:2px 8px; border-radius:4px; font-size:12px; display:inline-block; margin:2px;">❌ necesită date despre utilizatori</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col4:
+        st.markdown("""
+        <div style="
+            background: #FDF4FF;
+            border-top: 4px solid #9C27B0;
+            border-radius: 12px;
+            padding: 18px 20px;
+            line-height: 1.75;
+            font-size: 14px;
+            min-height: 260px;
+        ">
+            <div style="font-size:16px; font-weight:700; color:#1a1a2e; margin-bottom:10px;">
+                🧮 Matrix Factorization
+            </div>
+            <div style="color:#333; margin-bottom:12px;">
+                Descompune o matrice mare de tip utilizatori × melodii în factori latenți (preferințe ascunse), identificând modele de comportament pe care utilizatorii nu le exprimă explicit.
+Această metodă permite realizarea unor recomandări foarte precise în sisteme cu un număr mare de utilizatori și interacțiuni.
+            </div>
+            <div style="color:#555; font-size:13px; margin-bottom:12px;">
+                <b>Folosit de:</b> Spotify și Netflix la scară industrială
+            </div>
+            <div>
+                <span style="background:#D3F9D8; color:#1a7431; padding:2px 8px; border-radius:4px; font-size:12px; display:inline-block; margin:2px;">✅ extrem de precis la scară mare</span>
+                <span style="background:#FFE3E3; color:#c0392b; padding:2px 8px; border-radius:4px; font-size:12px; display:inline-block; margin:2px;">❌ extrem de complex</span>
+                <span style="background:#FFE3E3; color:#c0392b; padding:2px 8px; border-radius:4px; font-size:12px; display:inline-block; margin:2px;">❌ necesită date masive</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # =========================
+    # DE CE KNN
+    # =========================
+
+    st.markdown("""
+    <div style="
+        background: #EEF4FF;
+        border: 2px solid #4C6EF5;
+        border-radius: 12px;
+        padding: 20px 24px;
+        font-size: 14.5px;
+        line-height: 1.85;
+    ">
+        <div style="font-size:16px; font-weight:700; color:#1a1a2e; margin-bottom:12px;">
+            🎯 De ce folosim Content-Based Filtering cu KNN în acest proiect?
+        </div>
+        <div style="color:#333; margin-bottom:10px;">
+            Setul nostru conține <b>caracteristici audio ale melodiilor</b> — energie, tempo, dispoziție —
+            dar nu avem date despre comportamentul utilizatorilor.
+            Singura metodă aplicabilă este <b>Content-Based Filtering</b>.
+        </div>
+        <div style="color:#333; margin-bottom:10px;">
+            Algoritmul <b>K-Nearest Neighbors (KNN)</b> reprezintă fiecare melodie ca un punct
+            într-un spațiu numeric și găsește cele mai apropiate K melodii față de cea aleasă.
+            Simplu, rapid și ușor de interpretat.
+        </div>
+        <div style="color:#333;">
+            <b>Un avantaj important:</b> poți vedea exact de ce a fost recomandată o melodie —
+            energy 0.73 vs 0.71, tempo 168 vs 171. Transparență totală, fără cutie neagră.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # =========================
+    # CONFIGURARE MODEL
+    # =========================
+
+    st.subheader("⚙️ Configurare model")
+    st.write("Ajustează parametrii înainte de antrenare:")
+
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+
+        metric = st.selectbox(
+            "📐 Metrica de similaritate",
+            ["cosine", "euclidean", "manhattan"],
+            help="Cosine e recomandat pentru date audio normalizate."
+        )
+
+        n_neighbors = st.slider(
+            "🎵 Câte recomandări vrei să primești?",
+            min_value=3,
+            max_value=15,
+            value=5
+        )
+
+        algorithm = st.selectbox(
+            "⚡ Algoritm de calcul",
+            ["auto", "ball_tree", "kd_tree", "brute"],
+            help="'auto' alege automat cel mai rapid algoritm pentru datele tale."
+        )
+
+    with col2:
+
+        if metric == "cosine":
+            bg = "#EEF4FF"
+            border = "#4C6EF5"
+            titlu = "📐 Cosine similarity"
+            explicatie = "Compară <b>profilul sonor</b> al melodiilor, nu mărimea valorilor.<br><br>Dacă două melodii au același echilibru între energie, tempo și dispoziție — chiar dacă valorile diferă puțin — le consideră similare.<br><br><b>Recomandat pentru caracteristici audio normalizate.</b>"
+        elif metric == "euclidean":
+            bg = "#F3F0FF"
+            border = "#7C3AED"
+            titlu = "📏 Distanța Euclideană"
+            explicatie = "Măsoară <b>distanța directă</b> dintre două melodii în spațiul numeric — ca distanța dintre două puncte pe o hartă, dar în mai multe dimensiuni.<br><br>Mai sensibilă la diferențele mari între valori — de aceea scalarea este importantă.<br><br><b>Funcționează bine după normalizarea datelor.</b>"
+        else:
+            bg = "#FFF8F0"
+            border = "#F08C00"
+            titlu = "📐 Distanța Manhattan"
+            explicatie = "Calculează distanța <b>sumând diferențele</b> pe fiecare caracteristică în parte — ca și cum mergi pe o grilă, doar pe orizontală și verticală, niciodată diagonal.<br><br>Mai robustă când există valori extreme în date.<br><br><b>Bună alternativă la Euclidean.</b>"
+
+        st.markdown(
+            f'<div style="background:{bg}; border-left:5px solid {border}; padding:16px 18px; border-radius:10px; line-height:1.75; font-size:14px; color:#1a1a2e;"><b>{titlu}</b><br><br>{explicatie}</div>',
+            unsafe_allow_html=True
+        )
+
+    # =========================
+    # CASETA ALGORITM DE CALCUL
+    # =========================
+
+    st.markdown("<div style='margin-top:16px'></div>", unsafe_allow_html=True)
+
+    if algorithm == "auto":
+        alg_titlu = "⚡ auto — alegere automată"
+        alg_text = "Streamlit alege singur cel mai rapid algoritm în funcție de dimensiunea datelor. <b>Recomandat pentru majoritatea cazurilor</b> — nu trebuie să te gândești la nimic."
+    elif algorithm == "ball_tree":
+        alg_titlu = "🌳 ball_tree"
+        alg_text = "Organizează datele într-o structură arborescentă de sfere concentrice. <b>Eficient pentru date cu multe caracteristici</b> și seturi mari. Funcționează cu orice metrică de distanță."
+    elif algorithm == "kd_tree":
+        alg_titlu = "📦 kd_tree"
+        alg_text = "Împarte spațiul numeric în dreptunghiuri recursive pentru a găsi vecinii mai rapid. <b>Rapid pentru seturi mici cu puține caracteristici</b>, dar nu funcționează cu cosine similarity."
+    else:
+        alg_titlu = "🔍 brute"
+        alg_text = "Compară melodia aleasă cu <b>fiecare altă melodie din dataset</b> una câte una. Cel mai lent, dar garantat corect. Util pentru debugging sau seturi mici de date."
+
+    st.markdown(
+        f'<div style="background:#FFFBEA; border-left:5px solid #F59F00; padding:16px 18px; border-radius:10px; line-height:1.75; font-size:14px; color:#1a1a2e;"><b>{alg_titlu}</b><br><br>{alg_text}</div>',
+        unsafe_allow_html=True
     )
 
-    fig_out.update_layout(
-        height=420,
-        title=f"Outlieri detectați – {selected_out_col}",
-        title_x=0.5
+    st.markdown("---")
+
+    # =========================
+    # BUTON ANTRENARE
+    # =========================
+
+    st.subheader("🚀 Antrenează modelul")
+    st.write("Apasă butonul de mai jos. Modelul calculează similaritatea dintre toate melodiile și devine gata să facă recomandări.")
+
+    st.markdown("""
+    <style>
+    div.stButton > button:first-child {
+        background: linear-gradient(90deg, #4C6EF5, #7C3AED);
+        color: white;
+        font-size: 16px;
+        font-weight: 600;
+        padding: 14px 0;
+        border-radius: 10px;
+        border: none;
+        width: 100%;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+    div.stButton > button:first-child:hover {
+        opacity: 0.88;
+        color: white;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    if st.button("▶  Antrenează modelul", use_container_width=True):
+
+        if "X_model" not in st.session_state:
+            st.warning("⚠️ Mergi mai întâi la pagina **Preprocesare** și aplică transformările.")
+
+        else:
+
+            # =========================
+            # VALIDARE COMPATIBILITATE
+            # =========================
+
+            if metric == "cosine" and algorithm in ["kd_tree", "ball_tree"]:
+                st.error("""
+    ⚠️ Algoritmul selectat nu este compatibil cu metrica aleasă.
+
+    Pentru cosine similarity poți folosi doar:
+    • auto
+    • brute
+    """)
+
+                st.stop()
+
+            # =========================
+            # ANTRENARE MODEL
+            # =========================
+
+            with st.spinner("Se calculează similaritățile dintre melodii..."):
+
+                model = NearestNeighbors(
+                    metric=metric,
+                    n_neighbors=n_neighbors + 1,
+                    algorithm=algorithm
+                )
+
+                model.fit(st.session_state["X_model"])
+
+                st.session_state["model"] = model
+                st.session_state["metric"] = metric
+                st.session_state["k"] = n_neighbors
+
+            st.success("✅ Modelul e gata! Mergi la pagina **Recomandări** pentru a testa.")
+
+            st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
+
+            col1, col2, col3 = st.columns(3)
+
+            col1.metric("🎵 Melodii procesate", f"{st.session_state['X_model'].shape[0]:,}")
+            col2.metric("📊 Caracteristici folosite", st.session_state["X_model"].shape[1])
+            col3.metric("🎯 Recomandări per melodie", n_neighbors)
+
+
+if menu == "Recomandări":
+
+    import urllib.parse
+    import re
+
+    st.markdown("""
+    <h1 style="
+    text-align:center;
+    margin-bottom:5px;
+    ">
+    🎧 Recomandare melodii similare
+    </h1>
+
+    <hr style="
+    height:2px;
+    border:none;
+    background:linear-gradient(90deg,#4C6EF5,#7C3AED);
+    margin-top:5px;
+    margin-bottom:30px;
+    ">
+    """, unsafe_allow_html=True)
+
+    # =========================
+    # VERIFICARE MODEL
+    # =========================
+
+    if "model" not in st.session_state:
+        st.warning("Antrenează modelul mai întâi.")
+        st.stop()
+
+    model = st.session_state["model"]
+    X_model = st.session_state["X_model"]
+    df_clean = st.session_state["df_model"]
+
+    # =========================
+    # SELECTARE ARTIST
+    # =========================
+
+    artisti = sorted(df_clean["artists"].dropna().unique())
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        artist_selectat = st.selectbox(
+            "🎤 Selectează artist",
+            artisti
+        )
+
+    with col2:
+        melodii_artist = df_clean[
+            df_clean["artists"].str.contains(
+                re.escape(artist_selectat),
+                case=False,
+                na=False
+            )
+        ]
+
+        melodie_selectata = st.selectbox(
+            "🎵 Selectează melodie",
+            melodii_artist["track_name"].unique()
+        )
+
+    melodie_pos = melodii_artist[
+        melodii_artist["track_name"] == melodie_selectata
+    ].index[0]
+
+    melodie = df_clean.loc[melodie_pos]
+
+    # =========================
+    # HERO CARD MELODIE
+    # =========================
+
+    dispozitie = (
+        "😊 Fericită"
+        if melodie["valence"] > 0.6
+        else "😢 Tristă"
+        if melodie["valence"] < 0.4
+        else "😐 Neutră"
     )
 
-    st.plotly_chart(
-        fig_out,
-        use_container_width=True,
-        key="outlier_plot"
+    energie = (
+        "⚡ Energie mare"
+        if melodie["energy"] > 0.6
+        else "🌙 Energie scăzută"
     )
 
+    st.markdown("---")
 
-selected_page = sidebar_navigation()
+    col1, col2 = st.columns([2, 1])
 
-if selected_page == "Acasă":
-    show_home()
-elif selected_page == "C1 – Încărcare & Filtrare Date":
-    show_cerinta_1()
-elif selected_page == "C2 – Analiză Generală":
-    show_cerinta_2()
-elif selected_page == "C3 – Analiză Numerică":
-    show_cerinta_3()
-elif selected_page == "C4 – Analiză Categorică":
-    show_cerinta_4()
-elif selected_page == "C5 – Corelații & Outlieri":
-    show_cerinta_5()
+    with col1:
 
+        st.markdown(f"""
+        <div style="
+        background:linear-gradient(90deg,#EEF4FF,#F3FFF3);
+        border-radius:14px;
+        padding:22px;
+        font-size:15px;
+        line-height:1.8;
+        ">
+
+        <h4>🎵 Melodie selectată</h4>
+
+        <b>{melodie['track_name']}</b><br>
+        {melodie['artists']}<br><br>
+
+        🎸 Gen: {melodie['track_genre']}<br>
+        ⭐ Popularitate: {melodie['popularity']} / 100<br>
+        😊 Dispoziție: {dispozitie}<br>
+        ⚡ Energie: {energie}<br>
+        🥁 Tempo: {round(melodie['tempo'])} BPM
+
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+
+        track_id = melodie["track_id"]
+
+        st.markdown(f"""
+        <iframe src="https://open.spotify.com/embed/track/{track_id}"
+        width="100%" height="200"
+        frameBorder="0"
+        allow="autoplay; clipboard-write; encrypted-media"
+        loading="lazy"
+        style="border-radius:12px;">
+        </iframe>
+        """, unsafe_allow_html=True)
+
+    # =========================
+    # GENERARE RECOMANDARI
+    # =========================
+
+    st.markdown("---")
+
+    if st.button("✨ Generează recomandări similare", use_container_width=True):
+
+        input_vector = X_model[melodie_pos].reshape(1, -1)
+
+        distances, indices = model.kneighbors(
+            input_vector,
+            n_neighbors=25   # luam mai multe ca sa eliminam duplicate
+        )
+
+        recomandari = []
+
+        seen = set()
+
+        for idx, dist in zip(indices[0], distances[0]):
+
+            row = df_clean.iloc[idx]
+
+            key = (row["track_name"], row["artists"])
+
+            if key == (melodie["track_name"], melodie["artists"]):
+                continue
+
+            if key in seen:
+                continue
+
+            seen.add(key)
+
+            recomandari.append((row, dist))
+
+            if len(recomandari) == st.session_state["k"]:
+                break
+
+        st.subheader("🎯 Top recomandări pentru tine")
+
+        # =========================
+        # AFISARE CARDURI PREMIUM
+        # =========================
+
+        for i, (row, dist) in enumerate(recomandari):
+
+            similaritate = round((1 - dist) * 100, 1)
+
+            dispozitie = (
+                "😊 Fericită"
+                if row["valence"] > 0.6
+                else "😢 Tristă"
+                if row["valence"] < 0.4
+                else "😐 Neutră"
+            )
+
+            energie = (
+                "⚡ Mare"
+                if row["energy"] > 0.6
+                else "🌙 Mică"
+            )
+
+            col1, col2 = st.columns([2, 1])
+
+            with col1:
+
+                st.markdown(f"""
+                <div style="
+                background:linear-gradient(90deg,#EEF4FF,#F3FFF3);
+                border-radius:14px;
+                border:1px solid #E9ECEF;
+                padding:18px;
+                margin-bottom:12px;
+                box-shadow:0px 2px 6px rgba(0,0,0,0.05);
+                ">
+
+                <b style="font-size:16px;">#{i+1} {row['track_name']}</b><br>
+                {row['artists']}<br><br>
+
+                ⭐ Similaritate: <b>{similaritate}%</b><br>
+                🎸 Gen: {row['track_genre']}<br>
+                😊 Dispoziție: {dispozitie}<br>
+                ⚡ Energie: {energie}<br>
+                🥁 Tempo: {round(row['tempo'])} BPM
+
+                </div>
+                """, unsafe_allow_html=True)
+
+            with col2:
+
+                track_id = row["track_id"]
+
+                st.markdown(f"""
+                <iframe src="https://open.spotify.com/embed/track/{track_id}"
+                width="100%" height="200"
+                frameBorder="0"
+                allow="autoplay; clipboard-write; encrypted-media"
+                loading="lazy"
+                style="border-radius:10px;">
+                </iframe>
+                """, unsafe_allow_html=True)
+
+if menu == "Acasă":
+    st.markdown("---")
+    # INTRO
+    st.markdown("""
+    <div style="
+    background:#F0F4FF;
+    border-left:6px solid #4C6EF5;
+    padding:22px;
+    border-radius:12px;
+    font-size:16px;
+    line-height:1.7;
+    ">
+
+    Planul de astăzi este să construim propriul nostru <b>sistem de recomandare muzicală</b>, inspirat de tehnologia din spatele Spotify sau YouTube.
+
+    Vom folosi un set de date real de pe Kaggle, care cuprinde peste 100.000 de piese. Obiectivul nostru este să analizăm aceste date, să le pregătim și să antrenăm un algoritm care „înțelege” muzica prin cifre: energie, tempo, cât de potrivită e pentru dans (danceability) sau starea de spirit pe care o transmite (valence). La final, vom obține un instrument capabil să sugereze automat piese similare celor preferate de utilizator.
+
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 🤔 Întrebări pentru voi")
+
+    st.markdown("""
+    <div style="
+    background:#FFF9DB;
+    border-left:6px solid #FAB005;
+    padding:20px;
+    border-radius:12px;
+    font-size:15.5px;
+    line-height:1.7;
+    ">
+
+    📱 Cum credeți că <b>Instagram</b> știe ce videoclipuri să vă sugereze în Reels?
+
+    🛒 Cum credeți că aplicațiile online știu ce <b>reclame</b> să vă arate în funcție de interesele voastre?
+
+    🎧 Cum credeți că <b>Spotify</b> reușește să recomande melodii asemănătoare celor pe care le ascultați?
+
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("---")
+
+    st.markdown("### 🚀 Pașii pe care îi vom parcurge astăzi")
+
+
+    # GRID 2x2 CARDURI
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        st.markdown("""
+        <div style="
+        background:#E3FAFC;
+        padding:22px;
+        border-radius:14px;
+        min-height:180px;
+        ">
+
+        <h4>📊 Exploratory Data Analysis (EDA)</h4>
+
+        Vom analiza datasetul pentru a înțelege structura datelor,
+        tipurile de variabile existente și relațiile dintre caracteristicile muzicale.
+
+        </div>
+        """, unsafe_allow_html=True)
+
+
+        st.markdown("""
+        <div style="
+        background:#E6FCF5;
+        padding:22px;
+        border-radius:14px;
+        min-height:180px;
+        margin-top:20px;
+        ">
+
+        <h4>⚙️ Preprocesarea datelor</h4>
+
+        Vom selecta variabilele relevante, verificăm dacă există valori lipsă
+        și aducem datele la aceeași scară pentru a putea fi utilizate corect de algoritm.
+
+        </div>
+        """, unsafe_allow_html=True)
+
+
+    with col2:
+
+        st.markdown("""
+        <div style="
+        background:#FFF3BF;
+        padding:22px;
+        border-radius:14px;
+        min-height:180px;
+        ">
+
+        <h4>🤖 Construirea modelului</h4>
+
+        Vom construi algoritmul de recomandare care calculează similaritatea dintre melodii
+        folosind caracteristicile audio ale acestora.
+
+        </div>
+        """, unsafe_allow_html=True)
+
+
+        st.markdown("""
+        <div style="
+        background:#F3F0FF;
+        padding:22px;
+        border-radius:14px;
+        min-height:180px;
+        margin-top:20px;
+        ">
+
+        <h4>✅ Testarea recomandărilor</h4>
+
+        Vom verifica dacă sistemul generează recomandări corecte
+        și dacă melodiile sugerate sunt într-adevăr asemănătoare între ele.
+
+        </div>
+        """, unsafe_allow_html=True)
