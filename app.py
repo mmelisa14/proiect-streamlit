@@ -1157,10 +1157,10 @@ if menu == "Recomandări":
 
     with col2:
         melodii_artist = df_clean[
-            df_clean["artists"].str.contains(
-                re.escape(artist_selectat),
-                case=False,
-                na=False
+            df_clean["artists"].apply(
+                lambda x: artist_selectat in [a.strip() for a in x.split(";")]
+                if isinstance(x, str)
+                else False
             )
         ]
 
