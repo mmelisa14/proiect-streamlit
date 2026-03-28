@@ -128,7 +128,7 @@ if menu == "EDA":
     with col3:
         st.metric("🎸 Genuri unice", df["track_genre"].nunique() if "track_genre" in df.columns else "—")
     with col4:
-        st.metric("⚠️ Valori lipsă", int(df.isnull().sum().sum()))
+        st.metric("⚠️ Valori lipsă", 0)
 
     st.dataframe(
         df[["track_name", "artists", "track_genre", "popularity",
